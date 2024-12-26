@@ -1,0 +1,36 @@
+input:
+  # Produce with
+  # echo '{"some_data": "testmsg" , "bla": 1}' | kaf produce cdc.ExampleTable --proto-type simple.v1.ExampleTable --proto-include ./pkg/bqschema/proto -n 5 --key abc
+  redpanda:
+    seed_brokers: ["localhost:9092"]
+    topics: ["cdc.ExampleTable"]
+    consumer_group: "cdc.ExampleTable.to.bigqueryxddd15"
+    auto_replay_nacks: false
+    fetch_min_bytes: 50000
+    # fetch_max_bytes: 5000000
+    # partition_buffer_bytes: "1MB"
+    commit_period: 10s
+    # batching:
+    #   count: 5000
+    #   period: 100ms
+  # stdin:
+  #   processors:
+  #     - protobuf:
+  #         operator: from_json
+  #         message: simple.v1.ExampleTable
+  #         import_paths:
+  #           - ./pkg/bqschema/proto
+output:
+  # drop: {}
+  bigquery_write_api:
+    project: home-net-284509
+    dataset: nerdentest
+    table: test1
+    file_descriptor_set: ./pkg/bqschema/proto/gen/filedescriptorset.binpb
+    protobuf_type: simple.v1.ExampleTable
+    # batching:
+    #   count: 5000
+    #   period: 20ms
+
+logger:
+  level: DEBUG

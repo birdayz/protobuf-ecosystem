@@ -1,0 +1,21 @@
+version: '3'
+
+tasks:
+  generate:
+    dir: pkg/bqschema
+    cmds:
+      - buf generate
+      - |
+        buf build . -o ./proto/gen/filedescriptorset.binpb
+  test:
+    deps:
+      - install-tparse
+    cmds:
+      - go test -v ./... -json | tparse -trimpath 'github.com/birdayz/protobuf-ecosystem/'
+  install-tparse:
+    vars:
+      VERSION: v0.16.0
+    cmds:
+      - go install github.com/mfridman/tparse@{{.VERSION}}
+    status:
+      - '[[ $(tparse --version) == "tparse version: {{.VERSION}}" ]]'

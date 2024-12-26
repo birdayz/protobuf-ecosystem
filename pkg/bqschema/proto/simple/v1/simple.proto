@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package simple.v1;
+
+// import "bq_table.proto";
+import "google/protobuf/timestamp.proto";
+
+message ExampleTable {
+ // option (gen_bq_schema.bigquery_opts).table_name = "test1";
+ string id = 1;
+ google.protobuf.Timestamp timestamp = 2;
+ string some_data = 3;
+ int64 bla = 5;
+}
