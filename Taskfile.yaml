@@ -11,7 +11,8 @@ tasks:
     deps:
       - install-tparse
     cmds:
-      - go test -v ./... -json | tparse -trimpath 'github.com/birdayz/protobuf-ecosystem/'
+      - |
+        go list -f '{{`{{.Dir}}`}}/...' -m | xargs go test -json -v ./... | tparse -trimpath 'github.com/birdayz/protobuf-ecosystem/'
   install-tparse:
     vars:
       VERSION: v0.16.0
