@@ -11,6 +11,7 @@ require (
 	github.com/onsi/gomega v1.36.2
 	google.golang.org/api v0.214.0
 	google.golang.org/protobuf v1.36.1
+	k8s.io/utils v0.0.0-20241210054802-24370beab758
 )
 
 require (

@@ -1,6 +1,7 @@
 package protoconfig
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -42,9 +43,16 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 }
 
 func recurse(m protoreflect.Message) error {
-
 	for i := 0; i < m.Descriptor().Fields().Len(); i++ {
 		fd := m.Descriptor().Fields().Get(i)
+
+		if fd.Kind() == protoreflect.MessageKind {
+			if m.Has(fd) {
+				if err := recurse(m.Get(fd).Message()); err != nil {
+					return fmt.Errorf("failed to recurse into field %s: %w", fd.Name(), err)
+				}
+			}
+		}
 
 		opts := proto.GetExtension(fd.Options().(*descriptorpb.FieldOptions), protoconfigv1.E_Options).(*protoconfigv1.FieldOptions)
 		if opts == nil || opts.Env == nil {
@@ -68,14 +76,52 @@ func recurse(m protoreflect.Message) error {
 				return fmt.Errorf("could not convert env var %s with value %s, because enum value does not exist", *opts.Env, envVal)
 			}
 			m.Set(fd, protoreflect.ValueOfEnum(enumVal.Number()))
-		case protoreflect.StringKind:
-			m.Set(fd, protoreflect.ValueOfString(envVal))
-		case protoreflect.Int32Kind, protoreflect.Sint32Kind:
+		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
 			v, err := strconv.ParseInt(envVal, 10, 32)
 			if err != nil {
 				return fmt.Errorf("could not convert env var %s with value %s to int32: %w", *opts.Env, envVal, err)
 			}
 			m.Set(fd, protoreflect.ValueOfInt32(int32(v)))
+		case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+			v, err := strconv.ParseUint(envVal, 10, 32)
+			if err != nil {
+				return fmt.Errorf("could not convert env var %s with value %s to uint32: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfUint32(uint32(v)))
+		case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+			v, err := strconv.ParseInt(envVal, 10, 64)
+			if err != nil {
+				return fmt.Errorf("could not convert env var %s with value %s to int64: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfInt64(int64(v)))
+		case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+			v, err := strconv.ParseUint(envVal, 10, 64)
+			if err != nil {
+				return fmt.Errorf("could not convert env var %s with value %s to uint64: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfUint64(uint64(v)))
+		case protoreflect.FloatKind:
+			v, err := strconv.ParseFloat(envVal, 32)
+			if err != nil {
+				err = fmt.Errorf("could not convert env var %s with value %s to float: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfFloat32(float32(v)))
+		case protoreflect.DoubleKind:
+			v, err := strconv.ParseFloat(envVal, 64)
+			if err != nil {
+				err = fmt.Errorf("could not convert env var %s with value %s to float: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfFloat64(float64(v)))
+		case protoreflect.StringKind:
+			m.Set(fd, protoreflect.ValueOfString(envVal))
+		case protoreflect.BytesKind:
+			v, err := base64.StdEncoding.DecodeString(envVal)
+			if err != nil {
+				err = fmt.Errorf("could not base64 decode env var %s with value %s: %w", *opts.Env, envVal, err)
+			}
+			m.Set(fd, protoreflect.ValueOfBytes(v))
+			// MAP
+
 		}
 
 	}

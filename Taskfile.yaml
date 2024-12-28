@@ -2,11 +2,20 @@ version: '3'
 
 tasks:
   generate:
+    cmds:
+      - task: generate-pkg-bqschema
+      - task: generate-protoconfig
+  generate-pkg-bqschema:
     dir: pkg/bqschema
     cmds:
       - buf generate
       - |
         buf build . -o ./proto/gen/filedescriptorset.binpb
+  generate-protoconfig:
+    dir: protoconfig
+    cmds:
+      - buf generate
+
   test:
     deps:
       - install-tparse

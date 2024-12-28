@@ -3,6 +3,11 @@ package protoconfig.v1;
 
 import "protoconfig/v1/options.proto";
 
+message Nested {
+  string string_field = 1 [(protoconfig.v1.options).env = "NESTED_STRING_FIELD_VAL"];
+  string not_updated_via_env = 2;
+}
+
 message Test {
   enum TestEnum {
     TEST_ENUM_UNSPECIFIED = 0;
@@ -29,5 +34,10 @@ message Test {
   double double_field = 14 [(protoconfig.v1.options).env = "DOUBLE_FIELD_VAL"];
   string string_field = 15 [(protoconfig.v1.options).env = "STRING_FIELD_VAL"];
   bytes bytes_field = 16 [(protoconfig.v1.options).env = "BYTES_FIELD_VAL"];
-  Test message_field = 17 [(protoconfig.v1.options).env = "MESSAGE_FIELD_VAL"];
+
+  // Interesting to test for infinite recursion.
+  Test message_field = 17;
+
+  Nested nested_message_field = 18;
+  optional int32 optional_int32_field = 19 [(protoconfig.v1.options).env = "OPTIONAL_INT32_FIELD_VAL"];
 }
