@@ -8,6 +8,11 @@ message Nested {
   string not_updated_via_env = 2;
 }
 
+message Nested2 {
+  string string_field = 1;
+  string not_updated_via_env = 2;
+}
+
 message Test {
   enum TestEnum {
     TEST_ENUM_UNSPECIFIED = 0;
@@ -40,4 +45,8 @@ message Test {
 
   Nested nested_message_field = 18;
   optional int32 optional_int32_field = 19 [(protoconfig.v1.options).env = "OPTIONAL_INT32_FIELD_VAL"];
+
+  repeated Nested2 repeated_nested_message = 20;
+
+  map<string, Nested2> string_to_map = 21;
 }

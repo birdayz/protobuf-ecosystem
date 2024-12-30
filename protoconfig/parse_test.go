@@ -66,6 +66,22 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 		Sint32Field:        1,
 		MessageField:       &protoconfigv1.Test{},
 		NestedMessageField: &protoconfigv1.Nested{},
+		RepeatedNestedMessage: []*protoconfigv1.Nested2{
+			{
+				StringField:      "abc",
+				NotUpdatedViaEnv: "abc1",
+			},
+			{
+				StringField:      "abc2",
+				NotUpdatedViaEnv: "abc2",
+			},
+		},
+		StringToMap: map[string]*protoconfigv1.Nested2{
+			"my_map_key": &protoconfigv1.Nested2{
+				StringField:      "some-string-field-very-nested",
+				NotUpdatedViaEnv: "some-string-field-very-nested-too",
+			},
+		},
 	})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).To(EqualProto(&protoconfigv1.Test{
@@ -108,6 +124,22 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 		NestedMessageField: &protoconfigv1.Nested{
 			StringField:      "nested-string-from-env",
 			NotUpdatedViaEnv: "some-val-from-yaml",
+		},
+		RepeatedNestedMessage: []*protoconfigv1.Nested2{
+			{
+				StringField:      "abc",
+				NotUpdatedViaEnv: "abc1",
+			},
+			{
+				StringField:      "abc2",
+				NotUpdatedViaEnv: "abc2",
+			},
+		},
+		StringToMap: map[string]*protoconfigv1.Nested2{
+			"my_map_key": &protoconfigv1.Nested2{
+				StringField:      "some-string-field-very-nested",
+				NotUpdatedViaEnv: "some-string-field-very-nested-too",
+			},
 		},
 	}))
 }
