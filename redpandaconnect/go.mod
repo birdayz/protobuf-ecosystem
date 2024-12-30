@@ -8,7 +8,7 @@ require (
 	github.com/redpanda-data/connect/public/bundle/free/v4 v4.44.0
 	github.com/twmb/franz-go v1.18.0
 	google.golang.org/api v0.214.0
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/protobuf v1.36.0
 )
 
 require (

@@ -5,13 +5,41 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"buf.build/go/protoyaml"
-	protoconfigv1 "github.com/birdayz/protobuf-ecosystem/protoconfig/proto/gen/go/protoconfig/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protopath"
+	"google.golang.org/protobuf/reflect/protorange"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+// RangeAllFields is a decorator of protorange.Range, that also includes unset primitive fields.
+// No ordering of fields within a message is guaranteed.
+func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) error {
+	return protorange.Range(m, func(v protopath.Values) error {
+		if err := f(v); err != nil {
+			return err
+		}
+		leaf := v.Index(-1)
+		// In addition to the "normal" calls to the provided function f, also call it for unset primitive fields.
+		if (leaf.Step.Kind() == protopath.RootStep) || (leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind && !leaf.Step.FieldDescriptor().IsMap() && !leaf.Step.FieldDescriptor().IsList()) {
+			msg := leaf.Value.Message()
+			for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
+				fd := msg.Descriptor().Fields().Get(i)
+				if !msg.Has(fd) {
+					if err := f(protopath.Values{
+						Path:   append(v.Path, protopath.FieldAccess(fd)),
+						Values: append(v.Values, fd.Default()),
+					}); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	})
+}
 
 func Load[T proto.Message](path string, defaults T) (T, error) {
 	// Clone defaults, we don't want to suprise callers by modifying their
@@ -36,11 +64,85 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	proto.Merge(cfg, fromFile)
 
 	// 2. Load additional env vars on top.
-	if err := recurse(nil, cfg.ProtoReflect()); err != nil {
-		return cfg.(T), err
-	}
+	// if err := recurse(nil, cfg.ProtoReflect()); err != nil {
+	// 	return cfg.(T), err
+	// }
 
-	return cfg.(T), nil
+	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
+		leaf := v.Index(-1)
+		parent := v.Index(-2)
+
+		// We're only interested in primitive fields.
+		if leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind {
+			return nil
+		}
+
+		// Lookup env var for this field.
+		// It is the uppercase concatenated field path.
+		// For map, the map key is used.
+		// For list, the index is used.
+		envKey := pathToEnvKey(v.Path)
+
+		// Get override
+		envVal, ok := os.LookupEnv(envKey)
+		if !ok || envVal == "" {
+			return nil
+		}
+
+		strVal, err := stringToValue(leaf.Step.FieldDescriptor(), envVal)
+		if err != nil {
+			return err
+		}
+
+		// Store the redacted string back into the message.
+		switch leaf.Step.Kind() {
+		case protopath.FieldAccessStep:
+			m := parent.Value.Message()
+			fd := leaf.Step.FieldDescriptor()
+			m.Set(fd, strVal)
+		case protopath.ListIndexStep:
+			ls := parent.Value.List()
+			i := leaf.Step.ListIndex()
+			ls.Set(i, strVal)
+		case protopath.MapIndexStep:
+			ms := parent.Value.Map()
+			k := leaf.Step.MapIndex()
+			ms.Set(k, strVal)
+		}
+
+		return nil
+	})
+
+	return cfg.(T), err
+}
+
+func pathToEnvKey(path protopath.Path) string {
+	var value strings.Builder
+
+	for _, step := range path {
+		switch step.Kind() {
+		case protopath.RootStep:
+		// Do nothing
+		case protopath.FieldAccessStep:
+			// Skip _ prefix if we haven't written a field yet.
+			if value.Len() > 0 {
+				_, _ = value.WriteString("_")
+			}
+			_, _ = value.WriteString(strings.ToUpper(string(step.FieldDescriptor().Name())))
+		case protopath.MapIndexStep:
+			// Always add _ separator, because there's always a precending field access.
+			// Map indexing can't be the topmost item.
+			_, _ = value.WriteString("_")
+			_, _ = value.WriteString(strings.ToUpper(step.MapIndex().String()))
+		case protopath.ListIndexStep:
+			// Always add _ separator, because there's always a precending field access.
+			// Map indexing can't be the topmost item.
+			_, _ = value.WriteString("_")
+			_, _ = value.WriteString(strings.ToUpper(strconv.FormatInt(int64(step.ListIndex()), 10)))
+		}
+	}
+	result := value.String()
+	return result
 }
 
 func stringToValue(fd protoreflect.FieldDescriptor, strVal string) (protoreflect.Value, error) {
@@ -102,77 +204,4 @@ func stringToValue(fd protoreflect.FieldDescriptor, strVal string) (protoreflect
 		return protoreflect.ValueOfBytes(v), nil
 	}
 	return protoreflect.Value{}, nil
-}
-
-func recurse(path []protoreflect.Name, m protoreflect.Message) error {
-	for i := 0; i < m.Descriptor().Fields().Len(); i++ {
-		fd := m.Descriptor().Fields().Get(i)
-
-		fieldPath := append(path, fd.Name())
-		fmt.Println("p", fieldPath)
-
-		// TODO
-
-		// If is-repeated
-
-		// If is-map
-
-		// --> Do the below for all items.
-		// --> For map, list, if of message type, only existing entries will be handled
-		// --> For primitives, JSON unmarshal will be used.
-		// --> We might want to have a protojson-parse for value.
-
-		// Recurse if: is message, list+message, map+message-value.
-		if fd.Kind() == protoreflect.MessageKind {
-
-			if m.Has(fd) {
-				if fd.IsMap() && fd.MapValue().Kind() == protoreflect.MessageKind {
-					mp := m.Get(fd).Map()
-					mp.Range(func(mk protoreflect.MapKey, v protoreflect.Value) bool {
-						p := append(fieldPath, protoreflect.Name(mk.String()))
-						if err := recurse(p, v.Message()); err != nil {
-							panic(err) // TODO
-							// return fmt.Errorf("failed to recurse into field %s: %w", fd.Name(), err)
-						}
-						return true
-					})
-				} else if fd.IsList() {
-					l := m.Get(fd).List()
-
-					for i := 0; i < l.Len(); i++ {
-						p := append(fieldPath, protoreflect.Name(fmt.Sprintf("%d", i)))
-						if err := recurse(p, l.Get(i).Message()); err != nil {
-							return fmt.Errorf("failed to recurse into field %s: %w", fd.Name(), err)
-						}
-					}
-				} else {
-					if err := recurse(append(path, fd.Name()), m.Get(fd).Message()); err != nil {
-						return fmt.Errorf("failed to recurse into field %s: %w", fd.Name(), err)
-					}
-				}
-			}
-		}
-
-		// TODO: now, we've got values we want to directly read from env vars.
-
-		opts := proto.GetExtension(fd.Options().(*descriptorpb.FieldOptions), protoconfigv1.E_Options).(*protoconfigv1.FieldOptions)
-		if opts == nil || opts.Env == nil {
-			continue
-		}
-
-		envVal, ok := os.LookupEnv(*opts.Env)
-		if !ok || envVal == "" {
-			continue
-		}
-
-		valToSet, err := stringToValue(fd, envVal)
-		if err != nil {
-			return err
-		}
-
-		m.Set(fd, valToSet)
-
-	}
-
-	return nil
 }

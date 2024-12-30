@@ -31,24 +31,50 @@ func TestLoadSimple(t *testing.T) {
 func TestLoadWithEnvVarOverride(t *testing.T) {
 	RegisterTestingT(t)
 
-	t.Setenv("STRING_FIELD_VAL", "string-from-env")
-	t.Setenv("BOOL_FIELD_VAL", "true")
-	t.Setenv("ENUM_FIELD_VAL", "EXAMPLE_ENUM_EXAMPLE_VAL")
-	t.Setenv("INT32_FIELD_VAL", "100")
-	t.Setenv("SINT32_FIELD_VAL", "101")
-	t.Setenv("OPTIONAL_INT32_FIELD_VAL", "90")
-	t.Setenv("NESTED_STRING_FIELD_VAL", "nested-string-from-env")
-	t.Setenv("UINT32_FIELD_VAL", "102")
-	t.Setenv("INT64_FIELD_VAL", "103")
-	t.Setenv("SINT64_FIELD_VAL", "104")
-	t.Setenv("UINT64_FIELD_VAL", "105")
-	t.Setenv("SFIXED32_FIELD_VAL", "106")
-	t.Setenv("FIXED32_FIELD_VAL", "107")
-	t.Setenv("FLOAT_FIELD_VAL", "108.50")
-	t.Setenv("SFIXED64_FIELD_VAL", "109")
-	t.Setenv("FIXED64_FIELD_VAL", "110")
-	t.Setenv("DOUBLE_FIELD_VAL", "111.50")
-	t.Setenv("BYTES_FIELD_VAL", "c29tZS1yYXctYnl0ZXM=")
+	t.Setenv("STRING_FIELD", "string-from-env")
+	t.Setenv("BOOL_FIELD", "true")
+	t.Setenv("MESSAGE_FIELD_BOOL_FIELD", "true")
+	t.Setenv("ENUM_FIELD", "EXAMPLE_ENUM_EXAMPLE_VAL")
+	t.Setenv("INT32_FIELD", "100")
+	t.Setenv("SINT32_FIELD", "101")
+	t.Setenv("OPTIONAL_INT32_FIELD", "90")
+	t.Setenv("UINT32_FIELD", "102")
+	t.Setenv("INT64_FIELD", "103")
+	t.Setenv("SINT64_FIELD", "104")
+	t.Setenv("UINT64_FIELD", "105")
+	t.Setenv("SFIXED32_FIELD", "106")
+	t.Setenv("FIXED32_FIELD", "107")
+	t.Setenv("FLOAT_FIELD", "108.50")
+	t.Setenv("SFIXED64_FIELD", "109")
+	t.Setenv("FIXED64_FIELD", "110")
+	t.Setenv("DOUBLE_FIELD", "111.50")
+	t.Setenv("BYTES_FIELD", "c29tZS1yYXctYnl0ZXM=")
+
+	t.Setenv("MESSAGE_FIELD_STRING_FIELD", "string-from-env")
+	t.Setenv("MESSAGE_FIELD_BOOL_FIELD", "true")
+	t.Setenv("MESSAGE_FIELD_MESSAGE_FIELD_BOOL_FIELD", "true")
+	t.Setenv("MESSAGE_FIELD_ENUM_FIELD", "EXAMPLE_ENUM_EXAMPLE_VAL")
+	t.Setenv("MESSAGE_FIELD_INT32_FIELD", "100")
+	t.Setenv("MESSAGE_FIELD_SINT32_FIELD", "101")
+	t.Setenv("MESSAGE_FIELD_OPTIONAL_INT32_FIELD", "90")
+	t.Setenv("MESSAGE_FIELD_UINT32_FIELD", "102")
+	t.Setenv("MESSAGE_FIELD_INT64_FIELD", "103")
+	t.Setenv("MESSAGE_FIELD_SINT64_FIELD", "104")
+	t.Setenv("MESSAGE_FIELD_UINT64_FIELD", "105")
+	t.Setenv("MESSAGE_FIELD_SFIXED32_FIELD", "106")
+	t.Setenv("MESSAGE_FIELD_FIXED32_FIELD", "107")
+	t.Setenv("MESSAGE_FIELD_FLOAT_FIELD", "108.50")
+	t.Setenv("MESSAGE_FIELD_SFIXED64_FIELD", "109")
+	t.Setenv("MESSAGE_FIELD_FIXED64_FIELD", "110")
+	t.Setenv("MESSAGE_FIELD_DOUBLE_FIELD", "111.50")
+	t.Setenv("MESSAGE_FIELD_BYTES_FIELD", "c29tZS1yYXctYnl0ZXM=")
+
+	t.Setenv("NESTED_MESSAGE_FIELD_STRING_FIELD", "nested-string-from-env")
+
+	t.Setenv("REPEATED_NESTED_MESSAGE_0_STRING_FIELD", "overridden")
+	t.Setenv("REPEATED_NESTED_MESSAGE_1_STRING_FIELD", "overridden2")
+
+	t.Setenv("STRING_TO_MAP_MY_MAP_KEY_STRING_FIELD", "some-string-field-very-nested")
 	yml :=
 		`
   nested_message_field:
@@ -127,11 +153,11 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 		},
 		RepeatedNestedMessage: []*protoconfigv1.Nested2{
 			{
-				StringField:      "abc",
+				StringField:      "overridden",
 				NotUpdatedViaEnv: "abc1",
 			},
 			{
-				StringField:      "abc2",
+				StringField:      "overridden2",
 				NotUpdatedViaEnv: "abc2",
 			},
 		},
