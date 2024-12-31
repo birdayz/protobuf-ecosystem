@@ -1,7 +1,6 @@
 package protoconfig
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,8 +20,8 @@ func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) erro
 		if err := f(v); err != nil {
 			return err
 		}
-		leaf := v.Index(-1)
 		// In addition to the "normal" calls to the provided function f, also call it for unset primitive fields.
+		leaf := v.Index(-1)
 		if (leaf.Step.Kind() == protopath.RootStep) || (leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind && !leaf.Step.FieldDescriptor().IsMap() && !leaf.Step.FieldDescriptor().IsList()) {
 			msg := leaf.Value.Message()
 			for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
@@ -71,9 +70,10 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
 		leaf := v.Index(-1)
 		parent := v.Index(-2)
+		fd := leaf.Step.FieldDescriptor()
 
 		// We're only interested in primitive fields.
-		if leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind {
+		if leaf.Step.Kind() != protopath.FieldAccessStep || fd.Kind() == protoreflect.MessageKind {
 			return nil
 		}
 
@@ -89,25 +89,27 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 			return nil
 		}
 
-		strVal, err := stringToValue(leaf.Step.FieldDescriptor(), envVal)
-		if err != nil {
-			return err
-		}
+		if fd.IsList() {
+			l := parent.Value.Message().Mutable(fd).List()
+			l.Truncate(0)
 
-		// Store the redacted string back into the message.
-		switch leaf.Step.Kind() {
-		case protopath.FieldAccessStep:
+			values, err := stringToValues(fd, envVal)
+			if err != nil {
+				return fmt.Errorf("failed to convert list value: %w", err)
+			}
+
+			for _, item := range values {
+				l.Append(item)
+			}
+			// TODO: handle MAP of primitives.
+		} else {
+			strVal, err := stringToValue(leaf.Step.FieldDescriptor(), envVal)
+			if err != nil {
+				return err
+			}
+			// Store the redacted string back into the message.
 			m := parent.Value.Message()
-			fd := leaf.Step.FieldDescriptor()
 			m.Set(fd, strVal)
-		case protopath.ListIndexStep:
-			ls := parent.Value.List()
-			i := leaf.Step.ListIndex()
-			ls.Set(i, strVal)
-		case protopath.MapIndexStep:
-			ms := parent.Value.Map()
-			k := leaf.Step.MapIndex()
-			ms.Set(k, strVal)
 		}
 
 		return nil
@@ -143,65 +145,4 @@ func pathToEnvKey(path protopath.Path) string {
 	}
 	result := value.String()
 	return result
-}
-
-func stringToValue(fd protoreflect.FieldDescriptor, strVal string) (protoreflect.Value, error) {
-	switch fd.Kind() {
-	case protoreflect.BoolKind:
-		if strVal != "true" && strVal != "false" {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to bool, unsupported value", strVal)
-		}
-		return protoreflect.ValueOfBool(strVal == "true"), nil
-	case protoreflect.EnumKind:
-		enumVal := fd.Enum().Values().ByName(protoreflect.Name(strVal))
-		if enumVal == nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to enum: enum value does not exist", strVal)
-		}
-		return protoreflect.ValueOfEnum(enumVal.Number()), nil
-	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
-		v, err := strconv.ParseInt(strVal, 10, 32)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to int32: %w", strVal, err)
-		}
-		return protoreflect.ValueOfInt32(int32(v)), nil
-	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-		v, err := strconv.ParseUint(strVal, 10, 32)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to uint32: %w", strVal, err)
-		}
-		return protoreflect.ValueOfUint32(uint32(v)), nil
-	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-		v, err := strconv.ParseInt(strVal, 10, 64)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to int64: %w", strVal, err)
-		}
-		return protoreflect.ValueOfInt64(int64(v)), nil
-	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		v, err := strconv.ParseUint(strVal, 10, 64)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to uint64: %w", strVal, err)
-		}
-		return protoreflect.ValueOfUint64(uint64(v)), nil
-	case protoreflect.FloatKind:
-		v, err := strconv.ParseFloat(strVal, 32)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to float: %w", strVal, err)
-		}
-		return protoreflect.ValueOfFloat32(float32(v)), nil
-	case protoreflect.DoubleKind:
-		v, err := strconv.ParseFloat(strVal, 64)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not convert string %s to float: %w", strVal, err)
-		}
-		return protoreflect.ValueOfFloat64(float64(v)), nil
-	case protoreflect.StringKind:
-		return protoreflect.ValueOfString(strVal), nil
-	case protoreflect.BytesKind:
-		v, err := base64.StdEncoding.DecodeString(strVal)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("could not base64 decode string %s: %w", strVal, err)
-		}
-		return protoreflect.ValueOfBytes(v), nil
-	}
-	return protoreflect.Value{}, nil
 }

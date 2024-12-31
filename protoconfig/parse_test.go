@@ -50,6 +50,7 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	t.Setenv("DOUBLE_FIELD", "111.50")
 	t.Setenv("BYTES_FIELD", "c29tZS1yYXctYnl0ZXM=")
 
+	// Nested same type
 	t.Setenv("MESSAGE_FIELD_STRING_FIELD", "string-from-env")
 	t.Setenv("MESSAGE_FIELD_BOOL_FIELD", "true")
 	t.Setenv("MESSAGE_FIELD_MESSAGE_FIELD_BOOL_FIELD", "true")
@@ -69,12 +70,20 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	t.Setenv("MESSAGE_FIELD_DOUBLE_FIELD", "111.50")
 	t.Setenv("MESSAGE_FIELD_BYTES_FIELD", "c29tZS1yYXctYnl0ZXM=")
 
+	// Other type
 	t.Setenv("NESTED_MESSAGE_FIELD_STRING_FIELD", "nested-string-from-env")
 
+	// List of messages
 	t.Setenv("REPEATED_NESTED_MESSAGE_0_STRING_FIELD", "overridden")
 	t.Setenv("REPEATED_NESTED_MESSAGE_1_STRING_FIELD", "overridden2")
 
+	// Map string to message
 	t.Setenv("STRING_TO_MAP_MY_MAP_KEY_STRING_FIELD", "some-string-field-very-nested")
+
+	t.Setenv("LIST_OF_INTS", "[1,2,3]")
+	t.Setenv("LIST_OF_STRINGS", `["first","second","third"]`)
+	t.Setenv("LIST_OF_ENUMS", `["EXAMPLE_ENUM_EXAMPLE_VAL","EXAMPLE_ENUM_EXAMPLE_VAL"]`)
+
 	yml :=
 		`
   nested_message_field:
@@ -166,6 +175,12 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 				StringField:      "some-string-field-very-nested",
 				NotUpdatedViaEnv: "some-string-field-very-nested-too",
 			},
+		},
+		ListOfInts:    []int32{1, 2, 3},
+		ListOfStrings: []string{"first", "second", "third"},
+		ListOfEnums: []protoconfigv1.Test_ExampleEnum{
+			protoconfigv1.Test_EXAMPLE_ENUM_EXAMPLE_VAL,
+			protoconfigv1.Test_EXAMPLE_ENUM_EXAMPLE_VAL,
 		},
 	}))
 }

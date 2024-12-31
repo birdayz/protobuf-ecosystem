@@ -49,4 +49,8 @@ message Test {
   repeated Nested2 repeated_nested_message = 20;
 
   map<string, Nested2> string_to_map = 21;
+
+  repeated int32 list_of_ints = 22;
+  repeated string list_of_strings = 23;
+  repeated ExampleEnum list_of_enums = 24;
 }
