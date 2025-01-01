@@ -63,9 +63,6 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	proto.Merge(cfg, fromFile)
 
 	// 2. Load additional env vars on top.
-	// if err := recurse(nil, cfg.ProtoReflect()); err != nil {
-	// 	return cfg.(T), err
-	// }
 
 	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
 		leaf := v.Index(-1)
