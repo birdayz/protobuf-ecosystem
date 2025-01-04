@@ -95,6 +95,7 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	// t.Setenv("TIMESTAMPS_1", `2000-02-03T17:00:53.123Z`)
 
 	t.Setenv("OVERRIDDEN_BY_ENV", `{"string_field":"string-field-val"}`)
+	t.Setenv("NESTED_WITH_NESTED_NESTED_NESTED_DEEPLY_NESTED_STRING", "deeply-nested-overridden")
 
 	yml :=
 		`
@@ -170,6 +171,9 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 			Fixed64Field:       110,
 			DoubleField:        111.5,
 			BytesField:         []byte("some-raw-bytes"),
+			MessageField: &protoconfigv1.Test{
+				BoolField: true,
+			},
 		},
 		NestedMessageField: &protoconfigv1.Nested{
 			StringField:      "nested-string-from-env",
@@ -204,6 +208,11 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 		},
 		OverriddenByEnv: &protoconfigv1.Nested2{
 			StringField: "string-field-val",
+		},
+		NestedWithNested: &protoconfigv1.NestedWithNested{
+			NestedNested: &protoconfigv1.NestedWithNested_NestedNested{
+				DeeplyNestedString: "deeply-nested-overridden",
+			},
 		},
 	}))
 

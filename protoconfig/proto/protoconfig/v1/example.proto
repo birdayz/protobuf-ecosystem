@@ -15,6 +15,14 @@ message Nested2 {
   string not_updated_via_env = 2;
 }
 
+message NestedWithNested {
+  message NestedNested {
+    string deeply_nested_string = 1;
+  }
+
+  NestedNested nested_nested = 1;
+}
+
 message Test {
   enum TestEnum {
     TEST_ENUM_UNSPECIFIED = 0;
@@ -68,4 +76,6 @@ message Test {
   repeated google.protobuf.Timestamp timestamps = 26;
 
   Nested2 overridden_by_env = 27;
+
+  NestedWithNested nested_with_nested = 28;
 }

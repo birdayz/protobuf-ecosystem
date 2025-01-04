@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/reflect/protopath"
 	"google.golang.org/protobuf/reflect/protorange"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 // RangeAllFields is a decorator of protorange.Range, that also includes unset primitive fields.
@@ -106,15 +107,36 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 		} else {
 			// -- Ordinary Field - no map/list.
 			envVal, ok := os.LookupEnv(envKey)
-			if !ok || envVal == "" {
+			if ok && envVal != "" {
+				val, err := stringToValue(fd, envVal)
+				if err != nil {
+					return err
+				}
+				parent.Value.Message().Set(fd, val)
 				return nil
 			}
 
-			val, err := stringToValue(fd, envVal)
-			if err != nil {
-				return err
+			// This is a message field.
+			if !leaf.Value.IsValid() {
+				e := os.Environ()
+
+				var sub []string
+				for _, s := range e {
+					s = strings.Split(s, "=")[0]
+					if strings.HasPrefix(s, envKey+"_") {
+						sub = append(sub, s)
+					}
+				}
+
+				if len(sub) > 0 {
+					md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
+					if err != nil {
+						return err
+					}
+					parent.Value.Message().Set(fd, protoreflect.ValueOfMessage(md.New()))
+				}
 			}
-			parent.Value.Message().Set(fd, val)
+
 		}
 
 		return nil
