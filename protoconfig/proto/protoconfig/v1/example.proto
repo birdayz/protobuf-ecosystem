@@ -2,9 +2,11 @@ syntax = "proto3";
 package protoconfig.v1;
 
 import "protoconfig/v1/options.proto";
+import "google/protobuf/timestamp.proto";
 
 message Nested {
-  string string_field = 1 [(protoconfig.v1.options).env = "NESTED_STRING_FIELD_VAL"];
+  string string_field = 1
+      [ (protoconfig.v1.options).env = "NESTED_STRING_FIELD_VAL" ];
   string not_updated_via_env = 2;
 }
 
@@ -19,32 +21,40 @@ message Test {
     TEST_ENUM_SOME_VAL = 1;
   }
 
-  bool bool_field = 1 [(protoconfig.v1.options).env = "BOOL_FIELD_VAL"];
+  bool bool_field = 1 [ (protoconfig.v1.options).env = "BOOL_FIELD_VAL" ];
   enum ExampleEnum {
     EXAMPLE_ENUM_UNSPECIFIED = 0;
     EXAMPLE_ENUM_EXAMPLE_VAL = 1;
   }
-  ExampleEnum enum_field = 2 [(protoconfig.v1.options).env = "ENUM_FIELD_VAL"];
-  int32 int32_field = 3 [(protoconfig.v1.options).env = "INT32_FIELD_VAL"];
-  sint32 sint32_field = 4 [(protoconfig.v1.options).env = "SINT32_FIELD_VAL"];
-  uint32 uint32_field = 5 [(protoconfig.v1.options).env = "UINT32_FIELD_VAL"];
-  int64 int64_field = 6 [(protoconfig.v1.options).env = "INT64_FIELD_VAL"];
-  sint64 sint64_field = 7 [(protoconfig.v1.options).env = "SINT64_FIELD_VAL"];
-  uint64 uint64_field = 8 [(protoconfig.v1.options).env = "UINT64_FIELD_VAL"];
-  sfixed32 sfixed32_field = 9 [(protoconfig.v1.options).env = "SFIXED32_FIELD_VAL"];
-  fixed32 fixed32_field = 10 [(protoconfig.v1.options).env = "FIXED32_FIELD_VAL"];
-  float float_field = 11 [(protoconfig.v1.options).env = "FLOAT_FIELD_VAL"];
-  sfixed64 sfixed64_field = 12 [(protoconfig.v1.options).env = "SFIXED64_FIELD_VAL"];
-  fixed64 fixed64_field = 13 [(protoconfig.v1.options).env = "FIXED64_FIELD_VAL"];
-  double double_field = 14 [(protoconfig.v1.options).env = "DOUBLE_FIELD_VAL"];
-  string string_field = 15 [(protoconfig.v1.options).env = "STRING_FIELD_VAL"];
-  bytes bytes_field = 16 [(protoconfig.v1.options).env = "BYTES_FIELD_VAL"];
+  ExampleEnum enum_field = 2
+      [ (protoconfig.v1.options).env = "ENUM_FIELD_VAL" ];
+  int32 int32_field = 3 [ (protoconfig.v1.options).env = "INT32_FIELD_VAL" ];
+  sint32 sint32_field = 4 [ (protoconfig.v1.options).env = "SINT32_FIELD_VAL" ];
+  uint32 uint32_field = 5 [ (protoconfig.v1.options).env = "UINT32_FIELD_VAL" ];
+  int64 int64_field = 6 [ (protoconfig.v1.options).env = "INT64_FIELD_VAL" ];
+  sint64 sint64_field = 7 [ (protoconfig.v1.options).env = "SINT64_FIELD_VAL" ];
+  uint64 uint64_field = 8 [ (protoconfig.v1.options).env = "UINT64_FIELD_VAL" ];
+  sfixed32 sfixed32_field = 9
+      [ (protoconfig.v1.options).env = "SFIXED32_FIELD_VAL" ];
+  fixed32 fixed32_field = 10
+      [ (protoconfig.v1.options).env = "FIXED32_FIELD_VAL" ];
+  float float_field = 11 [ (protoconfig.v1.options).env = "FLOAT_FIELD_VAL" ];
+  sfixed64 sfixed64_field = 12
+      [ (protoconfig.v1.options).env = "SFIXED64_FIELD_VAL" ];
+  fixed64 fixed64_field = 13
+      [ (protoconfig.v1.options).env = "FIXED64_FIELD_VAL" ];
+  double double_field = 14
+      [ (protoconfig.v1.options).env = "DOUBLE_FIELD_VAL" ];
+  string string_field = 15
+      [ (protoconfig.v1.options).env = "STRING_FIELD_VAL" ];
+  bytes bytes_field = 16 [ (protoconfig.v1.options).env = "BYTES_FIELD_VAL" ];
 
   // Interesting to test for infinite recursion.
   Test message_field = 17;
 
   Nested nested_message_field = 18;
-  optional int32 optional_int32_field = 19 [(protoconfig.v1.options).env = "OPTIONAL_INT32_FIELD_VAL"];
+  optional int32 optional_int32_field = 19
+      [ (protoconfig.v1.options).env = "OPTIONAL_INT32_FIELD_VAL" ];
 
   repeated Nested2 repeated_nested_message = 20;
 
@@ -53,4 +63,9 @@ message Test {
   repeated int32 list_of_ints = 22;
   repeated string list_of_strings = 23;
   repeated ExampleEnum list_of_enums = 24;
+
+  google.protobuf.Timestamp timestamp = 25;
+  repeated google.protobuf.Timestamp timestamps = 26;
+
+  Nested2 overridden_by_env = 27;
 }

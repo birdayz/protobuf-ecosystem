@@ -6,8 +6,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"gopkg.in/yaml.v3"
 )
 
 func convertPrimitive[T interface {
@@ -75,9 +80,49 @@ func stringToValues(fd protoreflect.FieldDescriptor, strVal string) ([]protorefl
 			results = append(results, protoreflect.ValueOfBytes(v))
 		}
 		return results, nil
-	default:
-		return nil, fmt.Errorf("invalid field kind: %v", fd.Kind())
+	case protoreflect.MessageKind: // Handle WKT
+		switch fd.Message().FullName() {
+		case "google.protobuf.Timestamp":
+			var items []string
+			dec := yaml.NewDecoder(strings.NewReader(strVal))
+			if err := dec.Decode(&items); err != nil {
+				return nil, err
+			}
+
+			var results []protoreflect.Value
+			for _, item := range items {
+				t, err := time.Parse(time.RFC3339Nano, item)
+				if err != nil {
+					return nil, fmt.Errorf("could not parse timestamps as RFC3339Nano: %w", err)
+				}
+				results = append(results, protoreflect.ValueOfMessage(timestamppb.New(t).ProtoReflect()))
+			}
+			return results, nil
+		default:
+			var result []protoreflect.Value
+			md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
+			if err != nil {
+				return nil, err
+			}
+
+			var items []json.RawMessage
+			dec := json.NewDecoder(strings.NewReader(strVal))
+			if err := dec.Decode(&items); err != nil {
+				return nil, err
+			}
+
+			for _, item := range items {
+				msg := md.New()
+				if err := protojson.Unmarshal(item, msg.Interface()); err != nil {
+					return nil, err
+				}
+				result = append(result, protoreflect.ValueOfMessage(msg))
+			}
+
+			return result, nil
+		}
 	}
+	return nil, fmt.Errorf("invalid field kind: %v", fd.Kind())
 }
 
 // stringToValue converts a string containing primitive values into their respective protoreflect.Value.
@@ -138,6 +183,38 @@ func stringToValue(fd protoreflect.FieldDescriptor, strVal string) (protoreflect
 			return protoreflect.Value{}, fmt.Errorf("could not base64 decode string %s: %w", strVal, err)
 		}
 		return protoreflect.ValueOfBytes(v), nil
+	case protoreflect.MessageKind: // Handle WKT
+		switch fd.Message().FullName() {
+		case "google.protobuf.Timestamp":
+			t, err := time.Parse(time.RFC3339Nano, strVal)
+			if err != nil {
+				return protoreflect.Value{}, fmt.Errorf("could not parse timestamp as RFC3339Nano: %w", err)
+			}
+			return protoreflect.ValueOfMessage(timestamppb.New(t).ProtoReflect()), nil
+
+		default:
+			md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
+			if err != nil {
+				return protoreflect.Value{}, err
+			}
+			msg := md.New()
+			if err := protojson.Unmarshal([]byte(strVal), msg.Interface()); err != nil {
+				return protoreflect.Value{}, err
+			}
+
+			return protoreflect.ValueOfMessage(msg), nil
+
+		}
+
+		// switch fd.Message().FullName() {
+		// case "google.protobuf.Timestamp":
+		// 	t, err := time.Parse(time.RFC3339Nano, strVal)
+		// 	if err != nil {
+		// 		return protoreflect.Value{}, fmt.Errorf("could not parse timestamp as RFC3339Nano: %w", err)
+		// 	}
+		// 	return protoreflect.ValueOfMessage(timestamppb.New(t).ProtoReflect()), nil
+		// }
+
 	}
-	return protoreflect.Value{}, nil
+	return protoreflect.Value{}, fmt.Errorf("unsupported kind: %v", fd.Kind())
 }

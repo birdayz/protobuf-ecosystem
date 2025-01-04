@@ -3,10 +3,12 @@ package protoconfig
 import (
 	"os"
 	"testing"
+	"time"
 
 	. "github.com/birdayz/protobuf-ecosystem/pkg/pbgomega"
 	protoconfigv1 "github.com/birdayz/protobuf-ecosystem/protoconfig/proto/gen/go/protoconfig/v1"
 	. "github.com/onsi/gomega"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/utils/ptr"
 )
 
@@ -84,6 +86,16 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	t.Setenv("LIST_OF_STRINGS", `["first","second","third"]`)
 	t.Setenv("LIST_OF_ENUMS", `["EXAMPLE_ENUM_EXAMPLE_VAL","EXAMPLE_ENUM_EXAMPLE_VAL"]`)
 
+	// WKT
+	t.Setenv("TIMESTAMP", `2000-02-03T17:00:53.123Z`)
+	t.Setenv("TIMESTAMPS", `["2000-02-02T17:00:53.123Z","2000-02-03T17:00:53.123Z"]`)
+
+	// NOT YET SUPPORTED
+	// t.Setenv("TIMESTAMPS_0", `2000-02-02T17:00:53.123Z`)
+	// t.Setenv("TIMESTAMPS_1", `2000-02-03T17:00:53.123Z`)
+
+	t.Setenv("OVERRIDDEN_BY_ENV", `{"string_field":"string-field-val"}`)
+
 	yml :=
 		`
   nested_message_field:
@@ -116,6 +128,9 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 				StringField:      "some-string-field-very-nested",
 				NotUpdatedViaEnv: "some-string-field-very-nested-too",
 			},
+		},
+		Timestamps: []*timestamppb.Timestamp{
+			timestamppb.Now(),
 		},
 	})
 	Expect(err).ToNot(HaveOccurred())
@@ -182,5 +197,19 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 			protoconfigv1.Test_EXAMPLE_ENUM_EXAMPLE_VAL,
 			protoconfigv1.Test_EXAMPLE_ENUM_EXAMPLE_VAL,
 		},
+		Timestamp: timestamppb.New(time.Date(2000, time.February, 3, 17, 0, 53, 123*1000*1000, time.UTC)),
+		Timestamps: []*timestamppb.Timestamp{
+			timestamppb.New(time.Date(2000, time.February, 2, 17, 0, 53, 123*1000*1000, time.UTC)),
+			timestamppb.New(time.Date(2000, time.February, 3, 17, 0, 53, 123*1000*1000, time.UTC)),
+		},
+		OverriddenByEnv: &protoconfigv1.Nested2{
+			StringField: "string-field-val",
+		},
 	}))
+
+	// TODO test for:
+	// Nested message in nested message, configured by env
+	// message in list of messages, configured by env
+	// list of messages in list of messages, configured by env
+
 }

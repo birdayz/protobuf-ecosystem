@@ -24,6 +24,7 @@ func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) erro
 		leaf := v.Index(-1)
 		if (leaf.Step.Kind() == protopath.RootStep) || (leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind && !leaf.Step.FieldDescriptor().IsMap() && !leaf.Step.FieldDescriptor().IsList()) {
 			msg := leaf.Value.Message()
+
 			for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
 				fd := msg.Descriptor().Fields().Get(i)
 				if !msg.Has(fd) {
@@ -67,46 +68,53 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
 		leaf := v.Index(-1)
 		parent := v.Index(-2)
-		fd := leaf.Step.FieldDescriptor()
 
-		// We're only interested in primitive fields.
-		if leaf.Step.Kind() != protopath.FieldAccessStep || fd.Kind() == protoreflect.MessageKind {
+		if leaf.Step.Kind() != protopath.FieldAccessStep {
 			return nil
 		}
 
-		// Lookup env var for this field.
-		// It is the uppercase concatenated field path.
-		// For map, the map key is used.
-		// For list, the index is used.
+		// Works only if FieldAccess
+		var fd protoreflect.FieldDescriptor
+		if leaf.Step.Kind() == protopath.FieldAccessStep {
+			fd = leaf.Step.FieldDescriptor()
+		}
+
 		envKey := pathToEnvKey(v.Path)
 
-		// Get override
-		envVal, ok := os.LookupEnv(envKey)
-		if !ok || envVal == "" {
-			return nil
-		}
-
 		if fd.IsList() {
-			l := parent.Value.Message().Mutable(fd).List()
-			l.Truncate(0)
+			if envVal, ok := os.LookupEnv(envKey); ok {
+				// Found exact match, that is supposed to provide the entire value for this field.
+				l := parent.Value.Message().Mutable(fd).List()
+				l.Truncate(0)
 
-			values, err := stringToValues(fd, envVal)
-			if err != nil {
-				return fmt.Errorf("failed to convert list value: %w", err)
-			}
+				values, err := stringToValues(fd, envVal)
+				if err != nil {
+					return fmt.Errorf("failed to convert list value: %w", err)
+				}
 
-			for _, item := range values {
-				l.Append(item)
+				for _, item := range values {
+					l.Append(item)
+				}
+
+				return nil
 			}
-			// TODO: handle MAP of primitives.
+		} else if fd.IsMap() {
+			if envVal, ok := os.LookupEnv(envKey); ok && envVal != "" {
+				panic("Map is unsupported")
+			}
+			// --- Map
 		} else {
-			strVal, err := stringToValue(leaf.Step.FieldDescriptor(), envVal)
+			// -- Ordinary Field - no map/list.
+			envVal, ok := os.LookupEnv(envKey)
+			if !ok || envVal == "" {
+				return nil
+			}
+
+			val, err := stringToValue(fd, envVal)
 			if err != nil {
 				return err
 			}
-			// Store the redacted string back into the message.
-			m := parent.Value.Message()
-			m.Set(fd, strVal)
+			parent.Value.Message().Set(fd, val)
 		}
 
 		return nil
