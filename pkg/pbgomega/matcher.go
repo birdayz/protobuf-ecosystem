@@ -34,10 +34,10 @@ func (matcher *equalProtoMatcher) Match(actual any) (bool, error) {
 
 func (matcher *equalProtoMatcher) FailureMessage(actual any) string {
 	diff := cmp.Diff(actual, matcher.expected, protocmp.Transform())
-	return "Mismatch(-actual +expected):\n" + diff
+	return "Mismatch.\n-: present, but not expected\n+: expected, but not present(-actual +expected):\n" + diff
 }
 
 func (matcher *equalProtoMatcher) NegatedFailureMessage(actual any) string {
 	diff := cmp.Diff(actual, matcher.expected, protocmp.Transform())
-	return "Mismatch(-actual +expected):\n" + diff
+	return "Mismatch.\n-: present, but not expected\n+: expected, but not present(-actual +expected):\n" + diff
 }
