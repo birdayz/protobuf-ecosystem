@@ -82,6 +82,19 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 
 		envKey := pathToEnvKey(v.Path)
 
+		hasSubFieldEnvs := func() bool {
+			e := os.Environ()
+
+			var sub []string
+			for _, s := range e {
+				s = strings.Split(s, "=")[0]
+				if strings.HasPrefix(s, envKey+"_") {
+					sub = append(sub, s)
+				}
+			}
+			return len(sub) > 0
+		}
+
 		if fd.IsList() {
 			if envVal, ok := os.LookupEnv(envKey); ok {
 				// Found exact match, that is supposed to provide the entire value for this field.
@@ -100,10 +113,10 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 				return nil
 			}
 		} else if fd.IsMap() {
+			// --- Map
 			if envVal, ok := os.LookupEnv(envKey); ok && envVal != "" {
 				panic("Map is unsupported")
 			}
-			// --- Map
 		} else {
 			// -- Ordinary Field - no map/list.
 			envVal, ok := os.LookupEnv(envKey)
@@ -116,25 +129,18 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 				return nil
 			}
 
-			// This is a message field.
-			if !leaf.Value.IsValid() {
-				e := os.Environ()
-
-				var sub []string
-				for _, s := range e {
-					s = strings.Split(s, "=")[0]
-					if strings.HasPrefix(s, envKey+"_") {
-						sub = append(sub, s)
-					}
+			// This is a message field (default value is "not present").
+			// If not present, set it - but only if an env var wants to set fields of this message.
+			// We don't want to set nested messages to a value by default, because
+			// this can lead to infinite recursion.
+			// By initializing this field, protorange.Range will consider this field, and call
+			// our range function for it.
+			if fd.Kind() == protoreflect.MessageKind && !leaf.Value.IsValid() && hasSubFieldEnvs() {
+				md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
+				if err != nil {
+					return err
 				}
-
-				if len(sub) > 0 {
-					md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
-					if err != nil {
-						return err
-					}
-					parent.Value.Message().Set(fd, protoreflect.ValueOfMessage(md.New()))
-				}
+				parent.Value.Message().Set(fd, protoreflect.ValueOfMessage(md.New()))
 			}
 
 		}
