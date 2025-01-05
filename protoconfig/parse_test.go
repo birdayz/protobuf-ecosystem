@@ -78,6 +78,7 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	// List of messages
 	t.Setenv("REPEATED_NESTED_MESSAGE_0_STRING_FIELD", "overridden")
 	t.Setenv("REPEATED_NESTED_MESSAGE_1_STRING_FIELD", "overridden2")
+	t.Setenv("REPEATED_NESTED_MESSAGE_2_STRING_FIELD", "overridden3")
 
 	// Map string to message
 	t.Setenv("STRING_TO_MAP_MY_MAP_KEY_STRING_FIELD", "some-string-field-very-nested")
@@ -187,6 +188,9 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 			{
 				StringField:      "overridden2",
 				NotUpdatedViaEnv: "abc2",
+			},
+			{
+				StringField: "overridden3",
 			},
 		},
 		StringToMap: map[string]*protoconfigv1.Nested2{

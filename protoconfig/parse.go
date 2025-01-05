@@ -21,8 +21,32 @@ func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) erro
 		if err := f(v); err != nil {
 			return err
 		}
+
 		// In addition to the "normal" calls to the provided function f, also call it for unset primitive fields.
 		leaf := v.Index(-1)
+
+		// Inject for messages in lists.
+		if leaf.Step.Kind() == protopath.ListIndexStep {
+
+			parent := v.Index(-2)
+			if parent.Step.FieldDescriptor().Kind() == protoreflect.MessageKind {
+				msg := parent.Value.List().Get(leaf.Step.ListIndex()).Message()
+				for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
+					fd := msg.Descriptor().Fields().Get(i)
+					if !msg.Has(fd) {
+						if err := f(protopath.Values{
+							Path:   append(v.Path, protopath.FieldAccess(fd)),
+							Values: append(v.Values, fd.Default()),
+						}); err != nil {
+							return err
+						}
+					}
+
+				}
+			}
+		}
+
+		// Inject for messages in message-fields.
 		if (leaf.Step.Kind() == protopath.RootStep) || (leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind && !leaf.Step.FieldDescriptor().IsMap() && !leaf.Step.FieldDescriptor().IsList()) {
 			msg := leaf.Value.Message()
 
@@ -38,6 +62,8 @@ func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) erro
 				}
 			}
 		}
+
+		// TODO: inject for messages in maps.
 		return nil
 	})
 }
@@ -70,29 +96,30 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 		leaf := v.Index(-1)
 		parent := v.Index(-2)
 
-		if leaf.Step.Kind() != protopath.FieldAccessStep {
-			return nil
-		}
-
 		// Works only if FieldAccess
 		var fd protoreflect.FieldDescriptor
 		if leaf.Step.Kind() == protopath.FieldAccessStep {
 			fd = leaf.Step.FieldDescriptor()
+		} else if leaf.Step.Kind() == protopath.ListIndexStep {
+			fd = parent.Step.FieldDescriptor()
+		} else {
+			return nil
 		}
 
 		envKey := pathToEnvKey(v.Path)
 
-		hasSubFieldEnvs := func() bool {
+		subFields := func() []string {
 			e := os.Environ()
 
 			var sub []string
-			for _, s := range e {
-				s = strings.Split(s, "=")[0]
-				if strings.HasPrefix(s, envKey+"_") {
-					sub = append(sub, s)
+			for _, key := range e {
+				key = strings.Split(key, "=")[0]
+
+				if strings.HasPrefix(key, envKey+"_") {
+					sub = append(sub, key)
 				}
 			}
-			return len(sub) > 0
+			return sub
 		}
 
 		if fd.IsList() {
@@ -112,6 +139,35 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 
 				return nil
 			}
+
+			// Check all envs below "this one" (trim prefix).
+			// _1, _2,
+			var highestInt *int
+			for _, subField := range subFields() {
+				trimmed := strings.Split(strings.TrimPrefix(subField, envKey+"_"), "_")[0]
+				if number, err := strconv.Atoi(trimmed); err == nil {
+					if highestInt == nil || number > *highestInt {
+						highestInt = &number
+					}
+				}
+			}
+			if highestInt != nil {
+				size := *highestInt + 1 // Size is index + 1
+				l := parent.Value.Message().Mutable(fd).List()
+
+				for i := l.Len(); i < size; i++ {
+					if fd.Kind() == protoreflect.MessageKind {
+						md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
+						if err != nil {
+							return err
+						}
+						l.Append(protoreflect.ValueOfMessage(md.New()))
+					} else if fd.HasDefault() {
+						l.Append(protoreflect.ValueOf(fd.Default()))
+					}
+				}
+			}
+
 		} else if fd.IsMap() {
 			// --- Map
 			if envVal, ok := os.LookupEnv(envKey); ok && envVal != "" {
@@ -135,7 +191,7 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 			// this can lead to infinite recursion.
 			// By initializing this field, protorange.Range will consider this field, and call
 			// our range function for it.
-			if fd.Kind() == protoreflect.MessageKind && !leaf.Value.IsValid() && hasSubFieldEnvs() {
+			if fd.Kind() == protoreflect.MessageKind && !leaf.Value.IsValid() && len(subFields()) > 0 {
 				md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
 				if err != nil {
 					return err
