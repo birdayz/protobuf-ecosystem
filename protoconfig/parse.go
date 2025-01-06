@@ -91,7 +91,6 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	proto.Merge(cfg, fromFile)
 
 	// 2. Load additional env vars on top.
-
 	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
 		leaf := v.Index(-1)
 		parent := v.Index(-2)
@@ -140,19 +139,17 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 				return nil
 			}
 
-			// Check all envs below "this one" (trim prefix).
-			// _1, _2,
-			var highestInt *int
+			var highestIndex *int
 			for _, subField := range subFields() {
 				trimmed := strings.Split(strings.TrimPrefix(subField, envKey+"_"), "_")[0]
 				if number, err := strconv.Atoi(trimmed); err == nil {
-					if highestInt == nil || number > *highestInt {
-						highestInt = &number
+					if highestIndex == nil || number > *highestIndex {
+						highestIndex = &number
 					}
 				}
 			}
-			if highestInt != nil {
-				size := *highestInt + 1 // Size is index + 1
+			if highestIndex != nil {
+				size := *highestIndex + 1 // Size is index + 1
 				l := parent.Value.Message().Mutable(fd).List()
 
 				for i := l.Len(); i < size; i++ {
@@ -205,33 +202,4 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	})
 
 	return cfg.(T), err
-}
-
-func pathToEnvKey(path protopath.Path) string {
-	var value strings.Builder
-
-	for _, step := range path {
-		switch step.Kind() {
-		case protopath.RootStep:
-		// Do nothing
-		case protopath.FieldAccessStep:
-			// Skip _ prefix if we haven't written a field yet.
-			if value.Len() > 0 {
-				_, _ = value.WriteString("_")
-			}
-			_, _ = value.WriteString(strings.ToUpper(string(step.FieldDescriptor().Name())))
-		case protopath.MapIndexStep:
-			// Always add _ separator, because there's always a precending field access.
-			// Map indexing can't be the topmost item.
-			_, _ = value.WriteString("_")
-			_, _ = value.WriteString(strings.ToUpper(step.MapIndex().String()))
-		case protopath.ListIndexStep:
-			// Always add _ separator, because there's always a precending field access.
-			// Map indexing can't be the topmost item.
-			_, _ = value.WriteString("_")
-			_, _ = value.WriteString(strings.ToUpper(strconv.FormatInt(int64(step.ListIndex()), 10)))
-		}
-	}
-	result := value.String()
-	return result
 }

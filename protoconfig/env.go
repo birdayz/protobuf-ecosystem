@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protopath"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -217,4 +218,33 @@ func stringToValue(fd protoreflect.FieldDescriptor, strVal string) (protoreflect
 
 	}
 	return protoreflect.Value{}, fmt.Errorf("unsupported kind: %v", fd.Kind())
+}
+
+func pathToEnvKey(path protopath.Path) string {
+	var value strings.Builder
+
+	for _, step := range path {
+		switch step.Kind() {
+		case protopath.RootStep:
+		// Do nothing
+		case protopath.FieldAccessStep:
+			// Skip _ prefix if we haven't written a field yet.
+			if value.Len() > 0 {
+				_, _ = value.WriteString("_")
+			}
+			_, _ = value.WriteString(strings.ToUpper(string(step.FieldDescriptor().Name())))
+		case protopath.MapIndexStep:
+			// Always add _ separator, because there's always a precending field access.
+			// Map indexing can't be the topmost item.
+			_, _ = value.WriteString("_")
+			_, _ = value.WriteString(strings.ToUpper(step.MapIndex().String()))
+		case protopath.ListIndexStep:
+			// Always add _ separator, because there's always a precending field access.
+			// Map indexing can't be the topmost item.
+			_, _ = value.WriteString("_")
+			_, _ = value.WriteString(strings.ToUpper(strconv.FormatInt(int64(step.ListIndex()), 10)))
+		}
+	}
+	result := value.String()
+	return result
 }
