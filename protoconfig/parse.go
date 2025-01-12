@@ -7,66 +7,12 @@ import (
 	"strings"
 
 	"buf.build/go/protoyaml"
+	"github.com/birdayz/protobuf-ecosystem/protoiter"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protopath"
-	"google.golang.org/protobuf/reflect/protorange"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
-
-// RangeAllFields is a decorator of protorange.Range, that also includes unset primitive fields.
-// No ordering of fields within a message is guaranteed.
-func RangeAllFields(m protoreflect.Message, f func(protopath.Values) error) error {
-	return protorange.Range(m, func(v protopath.Values) error {
-		if err := f(v); err != nil {
-			return err
-		}
-
-		// In addition to the "normal" calls to the provided function f, also call it for unset primitive fields.
-		leaf := v.Index(-1)
-
-		// Inject for messages in lists.
-		if leaf.Step.Kind() == protopath.ListIndexStep {
-
-			parent := v.Index(-2)
-			if parent.Step.FieldDescriptor().Kind() == protoreflect.MessageKind {
-				msg := parent.Value.List().Get(leaf.Step.ListIndex()).Message()
-				for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
-					fd := msg.Descriptor().Fields().Get(i)
-					if !msg.Has(fd) {
-						if err := f(protopath.Values{
-							Path:   append(v.Path, protopath.FieldAccess(fd)),
-							Values: append(v.Values, fd.Default()),
-						}); err != nil {
-							return err
-						}
-					}
-
-				}
-			}
-		}
-
-		// Inject for messages in message-fields.
-		if (leaf.Step.Kind() == protopath.RootStep) || (leaf.Step.Kind() == protopath.FieldAccessStep && leaf.Step.FieldDescriptor().Kind() == protoreflect.MessageKind && !leaf.Step.FieldDescriptor().IsMap() && !leaf.Step.FieldDescriptor().IsList()) {
-			msg := leaf.Value.Message()
-
-			for i := 0; i < msg.Descriptor().Fields().Len(); i++ {
-				fd := msg.Descriptor().Fields().Get(i)
-				if !msg.Has(fd) {
-					if err := f(protopath.Values{
-						Path:   append(v.Path, protopath.FieldAccess(fd)),
-						Values: append(v.Values, fd.Default()),
-					}); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		// TODO: inject for messages in maps.
-		return nil
-	})
-}
 
 func Load[T proto.Message](path string, defaults T) (T, error) {
 	// Clone defaults, we don't want to suprise callers by modifying their
@@ -91,7 +37,8 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 	proto.Merge(cfg, fromFile)
 
 	// 2. Load additional env vars on top.
-	err = RangeAllFields(cfg.ProtoReflect(), func(v protopath.Values) error {
+
+	for v := range protoiter.Fields(cfg.ProtoReflect()) {
 		leaf := v.Index(-1)
 		parent := v.Index(-2)
 
@@ -102,7 +49,7 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 		} else if leaf.Step.Kind() == protopath.ListIndexStep {
 			fd = parent.Step.FieldDescriptor()
 		} else {
-			return nil
+			continue
 		}
 
 		envKey := pathToEnvKey(v.Path)
@@ -129,14 +76,13 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 
 				values, err := stringToValues(fd, envVal)
 				if err != nil {
-					return fmt.Errorf("failed to convert list value: %w", err)
+					return *new(T), fmt.Errorf("failed to convert list value: %w", err)
 				}
 
 				for _, item := range values {
 					l.Append(item)
 				}
-
-				return nil
+				continue
 			}
 
 			var highestIndex *int
@@ -156,7 +102,7 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 					if fd.Kind() == protoreflect.MessageKind {
 						md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
 						if err != nil {
-							return err
+							return *new(T), err
 						}
 						l.Append(protoreflect.ValueOfMessage(md.New()))
 					} else if fd.HasDefault() {
@@ -176,10 +122,10 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 			if ok && envVal != "" {
 				val, err := stringToValue(fd, envVal)
 				if err != nil {
-					return err
+					return *new(T), err
 				}
 				parent.Value.Message().Set(fd, val)
-				return nil
+				continue
 			}
 
 			// This is a message field (default value is "not present").
@@ -191,15 +137,12 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 			if fd.Kind() == protoreflect.MessageKind && !leaf.Value.IsValid() && len(subFields()) > 0 {
 				md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
 				if err != nil {
-					return err
+					return *new(T), err
 				}
 				parent.Value.Message().Set(fd, protoreflect.ValueOfMessage(md.New()))
 			}
-
 		}
-
-		return nil
-	})
+	}
 
 	return cfg.(T), err
 }
