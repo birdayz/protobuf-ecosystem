@@ -81,7 +81,7 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 	t.Setenv("REPEATED_NESTED_MESSAGE_2_STRING_FIELD", "overridden3")
 
 	// Map string to message
-	t.Setenv("STRING_TO_MAP_MY_MAP_KEY_STRING_FIELD", "some-string-field-very-nested")
+	t.Setenv("STRING_TO_MAP_MY_MAP_KEY_STRING_FIELD", "some-string-field-very-nested2")
 
 	t.Setenv("LIST_OF_INTS", "[1,2,3]")
 	t.Setenv("LIST_OF_STRINGS", `["first","second","third"]`)
@@ -97,6 +97,8 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 
 	t.Setenv("OVERRIDDEN_BY_ENV", `{"string_field":"string-field-val"}`)
 	t.Setenv("NESTED_WITH_NESTED_NESTED_NESTED_DEEPLY_NESTED_STRING", "deeply-nested-overridden")
+
+	t.Setenv("PRIMITIVE_MAP", `{"some-key":"some-value"}`)
 
 	yml :=
 		`
@@ -126,14 +128,15 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 			},
 		},
 		StringToMap: map[string]*protoconfigv1.Nested2{
-			"my_map_key": &protoconfigv1.Nested2{
-				StringField:      "some-string-field-very-nested",
+			"my_map_key": {
 				NotUpdatedViaEnv: "some-string-field-very-nested-too",
 			},
 		},
 		Timestamps: []*timestamppb.Timestamp{
 			timestamppb.Now(),
 		},
+		// Expect this to be gone, because the entire map is expected to be replaced
+		PrimitiveMap: map[string]string{"something": "we-should-not-see"},
 	})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).To(EqualProto(&protoconfigv1.Test{
@@ -194,8 +197,8 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 			},
 		},
 		StringToMap: map[string]*protoconfigv1.Nested2{
-			"my_map_key": &protoconfigv1.Nested2{
-				StringField:      "some-string-field-very-nested",
+			"my_map_key": {
+				StringField:      "some-string-field-very-nested2",
 				NotUpdatedViaEnv: "some-string-field-very-nested-too",
 			},
 		},
@@ -218,6 +221,7 @@ func TestLoadWithEnvVarOverride(t *testing.T) {
 				DeeplyNestedString: "deeply-nested-overridden",
 			},
 		},
+		PrimitiveMap: map[string]string{"some-key": "some-value"},
 	}))
 
 	// TODO test for:

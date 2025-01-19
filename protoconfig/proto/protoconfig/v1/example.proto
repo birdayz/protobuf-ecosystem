@@ -78,4 +78,6 @@ message Test {
   Nested2 overridden_by_env = 27;
 
   NestedWithNested nested_with_nested = 28;
+
+  map<string,string> primitive_map = 29;
 }

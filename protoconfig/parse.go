@@ -48,6 +48,8 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 			fd = leaf.Step.FieldDescriptor()
 		} else if leaf.Step.Kind() == protopath.ListIndexStep {
 			fd = parent.Step.FieldDescriptor()
+		} else if leaf.Step.Kind() == protopath.MapIndexStep {
+			fd = parent.Step.FieldDescriptor()
 		} else {
 			continue
 		}
@@ -70,18 +72,11 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 
 		if fd.IsList() {
 			if envVal, ok := os.LookupEnv(envKey); ok {
-				// Found exact match, that is supposed to provide the entire value for this field.
-				l := parent.Value.Message().Mutable(fd).List()
-				l.Truncate(0)
-
-				values, err := stringToValues(fd, envVal)
+				v, err := stringToProtoValue(fd, envVal)
 				if err != nil {
 					return *new(T), fmt.Errorf("failed to convert list value: %w", err)
 				}
-
-				for _, item := range values {
-					l.Append(item)
-				}
+				parent.Value.Message().Set(fd, v)
 				continue
 			}
 
@@ -98,6 +93,8 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 				size := *highestIndex + 1 // Size is index + 1
 				l := parent.Value.Message().Mutable(fd).List()
 
+				// For every message index found in env vars, that is a message beyond the current size, initialize a list entry with default value.
+				// Protorange will call us for this field.
 				for i := l.Len(); i < size; i++ {
 					if fd.Kind() == protoreflect.MessageKind {
 						md, err := protoregistry.GlobalTypes.FindMessageByName(fd.Message().FullName())
@@ -113,14 +110,26 @@ func Load[T proto.Message](path string, defaults T) (T, error) {
 
 		} else if fd.IsMap() {
 			// --- Map
-			if envVal, ok := os.LookupEnv(envKey); ok && envVal != "" {
-				panic("Map is unsupported")
+
+			if envVal, ok := os.LookupEnv(envKey); ok {
+				mp, err := stringToProtoValue(fd, envVal)
+				if err != nil {
+					return *new(T), fmt.Errorf("failed to parse map value: %w", err)
+				}
+				parent.Value.Message().Set(fd, mp)
+			} else {
+				// TODO: this still needs to be implemented.
+				// Support override if nested env vars are set.
+				// Initializing map fields should be enough; as with list, protorange would subsequently visit these and the normal "direct" access code would kick in.
+				// If primitive, we can just take the entire suffix as the map key
+				// If message, split off field names of the sub-message. take the prefix before the field-name-suffix; that is the map key.
+				// Check if nested..
 			}
 		} else {
 			// -- Ordinary Field - no map/list.
 			envVal, ok := os.LookupEnv(envKey)
 			if ok && envVal != "" {
-				val, err := stringToValue(fd, envVal)
+				val, err := stringToProtoValue(fd, envVal)
 				if err != nil {
 					return *new(T), err
 				}
