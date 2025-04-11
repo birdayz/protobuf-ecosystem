@@ -1,0 +1,37 @@
+syntax = "proto3";
+package protofieldmask;
+
+
+message MyResource {
+  string test = 1;
+  string test2 = 2;
+
+  message Nested {
+    string nested_string = 1;
+    string nested_string_not_updateable = 2;
+  }
+  Nested nested = 3;
+
+  message NestedMessageNotUpdateable {
+    string another_string = 1;
+  }
+
+  string unset_in_both = 4;
+
+  Nested message_not_in_Update = 5;
+}
+
+message MyResourceUpdate {
+  string test = 1;
+
+  message Nested {
+    string nested_string = 1;
+    string nested_string_here_but_not_left = 3;
+  }
+  Nested nested = 3; // TODO for now, use same field numbers. But want to support using field names instead.
+  string unset_in_both = 4;
+
+  string is_message_in_old = 5;
+}
+
+

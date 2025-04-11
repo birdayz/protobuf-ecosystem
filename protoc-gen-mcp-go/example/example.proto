@@ -1,0 +1,37 @@
+syntax = "proto3";
+package main;
+
+message CreateExampleRequest {
+  int32 some_int32 = 1;
+  int64 some_int64 = 2;
+  string some_string = 3;
+  enum SomeEnum {
+    SOME_ENUM_UNSPECIFIED = 0;
+    SOME_ENUM_FIRST = 1;
+    SOME_ENUM_SECOND = 2;
+  }
+  SomeEnum some_enum = 4;
+  message Nested {
+    string some_field = 1;
+    message Nested2 {
+      string some_nested_field = 1;
+      message Nested3 {
+        string some_nested_in_nested_field = 1;
+        optional string optional_string = 2;
+      }
+      Nested3 nested3 = 2;
+    }
+    Nested2 nested2 = 2;
+  }
+
+  Nested nested = 5;
+  optional string optional_string = 6;
+}
+
+message CreateExampleResponse {
+  string some_string = 1;
+}
+
+service ExampleService {
+  rpc CreateExample(CreateExampleRequest) returns (CreateExampleResponse);
+}
