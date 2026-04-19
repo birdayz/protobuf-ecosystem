@@ -1,12 +1,7 @@
 syntax = "proto3";
 package protoconfig.v1;
 
-import "google/protobuf/descriptor.proto";
-
-message FieldOptions {
-  optional string env = 1;
-}
-
-extend google.protobuf.FieldOptions {
-  optional FieldOptions options = 50116;
-}
+// Reserved: FieldOptions.env annotation used to exist here (field 1).
+// It was removed because path-derived env keys are the single source of
+// truth — per-field overrides invited schema drift. Reintroduce only with
+// a clear migration story.
